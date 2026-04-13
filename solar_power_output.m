@@ -76,21 +76,22 @@ function [total_power, face_power, face_info] = solar_power_output(sun_vector, i
 
     % Optional fields — defaults match AZUR AM0 standard conditions
     if ~isfield(cell_params,'Tref'), cell_params.Tref = 28;   end
-    if ~isfield(cell_params,'T'),    cell_params.T    = 28;   end
     if ~isfield(cell_params,'LDEF'), cell_params.LDEF = 1;    end
     if ~isfield(cell_params,'G0'),   cell_params.G0   = 1367; end
+    if ~isfield(cell_params,'T_dark'), cell_params.T_dark = -20; end
+    if ~isfield(cell_params,'T_hot'),  cell_params.T_hot  =  80; end
 
     %% ── 1. Unpack & pre-compute temperature corrections ──────────────────
     Vmp0 = cell_params.Vmp0;
     Imp0 = cell_params.Imp0;
     dVdT = cell_params.dVdT;
     dIdT = cell_params.dIdT;
-    dT   = cell_params.T - cell_params.Tref;
+    % dT   = cell_params.T - cell_params.Tref; now in loop
     LDEF = cell_params.LDEF;
     G0   = cell_params.G0;
 
     % Vmp correction is irradiance-independent → pre-compute once
-    Vmp_cell = Vmp0 + dVdT * dT;
+    % Vmp_cell = Vmp0 + dVdT * dT; now in loop
 
     %% ── 2. Normalise sun vector & build face-normal lookup ───────────────
     sun_hat = sun_vector(:) / norm(sun_vector);
@@ -122,7 +123,7 @@ function [total_power, face_power, face_info] = solar_power_output(sun_vector, i
             face_info(k).cosTheta    = 0;
             face_info(k).illuminated = false;
             face_info(k).Imp         = 0;
-            face_info(k).Vmp         = Vmp_cell;
+            face_info(k).Vmp         = Vmp0;
             face_info(k).Pmp         = 0;
             face_info(k).power       = 0;
             continue
@@ -154,7 +155,7 @@ function [total_power, face_power, face_info] = solar_power_output(sun_vector, i
 
         if cosTheta <= 0
             face_info(k).Imp   = 0;
-            face_info(k).Vmp   = Vmp_cell;
+            face_info(k).Vmp   = Vmp0;
             face_info(k).Pmp   = 0;
             face_info(k).power = 0;
             continue
@@ -164,11 +165,14 @@ function [total_power, face_power, face_info] = solar_power_output(sun_vector, i
         G_eff = irradiance * cosTheta;   % [W/m²]
 
         % ── f. MPP cell model ──────────────────────────────────────────────
-        % Imp scales linearly with irradiance; dIdT shift is additive
+        T_dark   = cell_params.T_dark;
+        T_hot    = cell_params.T_hot;
+        T_cell   = T_dark + (T_hot - T_dark) * cosTheta;
+        dT       = T_cell - cell_params.Tref;
+        Vmp_cell = Vmp0 + dVdT * dT;             % now per-face
         Imp_cell = Imp0 * (G_eff / G0) + dIdT * dT;
-        Imp_cell = max(Imp_cell, 0);        % physical clamp — cannot go negative
-
-        Pmp_cell = Vmp_cell * Imp_cell;     % [W] per cell
+        Imp_cell = max(Imp_cell, 0);
+        Pmp_cell = Vmp_cell * Imp_cell;
 
         % ── g. Panel MPP power ─────────────────────────────────────────────
         % n_cells in series  → string voltage  = n_cells  × Vmp_cell

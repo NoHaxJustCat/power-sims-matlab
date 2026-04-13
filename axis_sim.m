@@ -22,7 +22,7 @@ cp.G0   = 1367;
 
 face_labels   = {'+X', '-X', '+Y', '-Y', '+Z', '-Z'};
 n_cells_vec   = [  4,    4,    0,    4,    2,    0 ];
-n_strings_vec = [  1,    1,    0,    1,    0,    1 ];
+n_strings_vec = [  1,    1,   0,    1,    0,    1 ];
 eta_wiring    = 0.98;
 
 pc = struct([]);
@@ -32,8 +32,6 @@ for i = 1:numel(face_labels)
     pc(i).n_strings  = n_strings_vec(i);
     pc(i).eta_wiring = eta_wiring;
 end
-
-worst_pct = 20;
 
 %% ═══════════════════════════════════════════════════════
 %  2. BUILD EQUAL-AREA GRID
@@ -52,7 +50,7 @@ rot_angles = linspace(0, 2*pi*(1 - 1/N_rot), N_rot);
 %% ═══════════════════════════════════════════════════════
 %  4. MAIN LOOP  —  parallelised over elevation rows
 % ═══════════════════════════════════════════════════════
-n_cores = str2double(getenv('SLURM_CPUS_PER_TASK'));
+n_cores = 6;  % Adjust based on your machine; set to 1 for no parallelism
 if isnan(n_cores) || n_cores < 1, n_cores = 1; end
 fprintf('Using %d cores\n', n_cores);
 
@@ -100,13 +98,10 @@ end
 P_flat   = P_axis_avg(:);
 P_mean   = mean(P_flat);
 P_sorted = sort(P_flat, 'ascend');
-n_worst  = round(worst_pct/100 * numel(P_flat));
-P_worst  = mean(P_sorted(1:n_worst));
 
 fprintf('\n');
 fprintf('Best-axis power    : %.4f W\n', max(P_flat));
 fprintf('Mean over all axes : %.4f W\n', P_mean);
-fprintf('Worst %d%% mean    : %.4f W\n', worst_pct, P_worst);
 fprintf('Worst-axis power   : %.4f W\n', min(P_flat));
 
 %% ═══════════════════════════════════════════════════════
@@ -114,9 +109,9 @@ fprintf('Worst-axis power   : %.4f W\n', min(P_flat));
 % ═══════════════════════════════════════════════════════
 out_dir = fullfile(getenv('HOME'), 'jobs');
 save(fullfile(out_dir, 'orbit_results.mat'), ...
-     'P_axis_avg', 'P_flat', 'P_mean', 'P_worst', ...
+     'P_axis_avg', 'P_flat', 'P_mean', ...
      'phi_ax_deg', 'theta_ax_deg', 'phi_ax', 'theta_ax', ...
-     'N_az', 'N_el', 'N_rot', 'worst_pct', 'irradiance', 'cp', 'pc');
+     'N_az', 'N_el', 'N_rot', 'irradiance', 'cp', 'pc');
 
 fprintf('Saved to %s/orbit_results.mat\n', out_dir);
 

@@ -1,9 +1,9 @@
 %% orbit_plot_results.m  —  CLIENT SIDE
 
 clear; clc;
-load('orbit_results.mat');
+load('results/orbit_results.mat');
 
-fprintf('P_mean = %.4f W  |  P_worst%d%% = %.4f W\n', P_mean, worst_pct, P_worst);
+fprintf('P_mean = %.4f W', P_mean);
 
 % ── Fig 1: Heatmap ────────────────────────────────────────────────────────
 figure('Name','Orbit-Average Power vs Tumbling Axis','NumberTitle','off');
@@ -12,8 +12,8 @@ set(gca,'YDir','normal'); colormap(turbo);
 cb = colorbar; cb.Label.String = 'Orbit-average power [W]';
 xlabel('Tumbling-axis azimuth \phi [°]');
 ylabel('Tumbling-axis elevation \theta [°]');
-title(sprintf('Orbit-Average Power vs Tumbling Axis\nMean = %.3f W  |  Worst-%d%% = %.3f W  |  Min = %.3f W  |  Max = %.3f W', ...
-              P_mean, worst_pct, P_worst, min(P_flat), max(P_flat)));
+title(sprintf('Orbit-Average Power vs Tumbling Axis\nMean = %.3f W  |  Min = %.3f W  |  Max = %.3f W', ...
+              P_mean, min(P_flat), max(P_flat)));
 xline(180,'w--','LineWidth',0.8); yline(0,'w--','LineWidth',0.8);
 axis tight;
 
@@ -37,8 +37,7 @@ histogram(P_flat, 60, 'FaceColor',[0.2 0.5 0.9], ...
 hold on;
 xline(P_mean,  'r-',  'LineWidth',2, 'Label',sprintf('Mean %.3f W', P_mean), ...
       'LabelVerticalAlignment','bottom');
-xline(P_worst, 'k--', 'LineWidth',2, 'Label',sprintf('Worst %d%% %.3f W', worst_pct, P_worst), ...
-      'LabelVerticalAlignment','bottom');
+
 xlabel('Orbit-average power [W]'); ylabel('Probability');
 title('Distribution of Orbit-Average Power Across All Tumbling Axes');
 grid on;
