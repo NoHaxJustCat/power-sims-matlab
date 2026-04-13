@@ -1,0 +1,192 @@
+%% tumbling_power_spherical.m
+%
+% Estimates tumbling-mode average power by sweeping the Sun direction
+% over a SYMMETRIC, DETERMINISTIC grid on the unit sphere (body frame).
+%
+% Instead of random quaternions this script uses a latitude/longitude grid
+% that gives UNIFORM AREA COVERAGE via the equal-area spherical sampling:
+%
+%   azimuth   φ  ∈ [0°, 360°)   with N_az  equally spaced steps
+%   elevation θ  ∈ [−90°, +90°] with N_el  steps, spacing ∝ cos(θ)
+%
+% The correct area element on a sphere is dA = cos(θ) dθ dφ, so a naive
+% uniform grid in (φ, θ) over-samples the poles. This script uses
+% equal-area elevation sampling: the elevations are chosen such that each
+% latitude band covers the same solid angle (sin-spaced).
+%
+% Calls: solar_power_output.m  (must be on the MATLAB path)
+%
+% -------------------------------------------------------------------------
+% OUTPUT SUMMARY
+%   P_avg       Mean power over all directions             [W]
+%   P_worst20   Mean of the worst (lowest) 20% directions  [W]
+%   P_grid      [N_el × N_az] power map                   [W]
+% -------------------------------------------------------------------------
+
+clear; clc;
+
+%% ═══════════════════════════════════════════════════════════════════════
+%  1. USER INPUTS  –  edit this section for your satellite
+% ═══════════════════════════════════════════════════════════════════════
+
+% ── Grid resolution ──────────────────────────────────────────────────────
+N_az = 360;   % azimuth points   (φ, 0–360°)
+N_el = 180;   % elevation points (θ, −90° to +90°, equal-area spaced)
+              % Total directions evaluated: N_az × N_el = 64 800
+
+% ── Solar irradiance ─────────────────────────────────────────────────────
+irradiance = 1361;   % W/m²  (solar constant at 1 AU)
+
+% ── Cell parameters (AZUR Space 30% TJ GaAs – Da Vinci values) ──────────
+cp.eta    = 0.29;
+cp.Isc0   = 0.520;   % A   short-circuit current per cell at STC
+cp.Voc0   = 2.700;   % V   open-circuit voltage per cell at STC
+cp.FF     = 0.855;   % fill factor
+cp.ki     = 2.0e-4;  % A/°C  Isc temperature coefficient
+cp.kv     = -6.0e-3; % V/°C  Voc temperature coefficient
+cp.Tref   = 25;      % °C   STC reference temperature
+cp.T      = 80;      % °C   on-orbit operating temperature (hot case)
+cp.LDEF   = 0.95;    % lifetime degradation factor (EOL)
+
+% ── Panel configuration ──────────────────────────────────────────────────
+% One struct per active face. Comment out / remove faces that are not
+% functional (e.g. Y+ and Z- in the Da Vinci malfunction scenario).
+%
+%   pc(i).face        '+X' | '-X' | '+Y' | '-Y' | '+Z' | '-Z'
+%   pc(i).n_cells     cells in series per string
+%   pc(i).n_strings   parallel strings on the face
+%   pc(i).cell_area   single-cell area [m²]
+%   pc(i).eta_wiring  wiring efficiency (optional, default 1)
+
+face_labels  = {'+X', '-X', '+Y', '-Y', '+Z', '-Z'};
+n_cells_vec  = [  12,   12,   12,   12,   12,   12];   % cells in series
+n_strings_vec= [   4,    4,    4,    4,    4,    4];   % parallel strings
+cell_area    = 4e-4;    % m²  (2 cm × 2 cm cell)
+eta_wiring   = 0.98;
+
+pc = struct([]);
+for i = 1:numel(face_labels)
+    pc(i).face       = face_labels{i};
+    pc(i).n_cells    = n_cells_vec(i);
+    pc(i).n_strings  = n_strings_vec(i);
+    pc(i).cell_area  = cell_area;
+    pc(i).eta_wiring = eta_wiring;
+end
+
+% ── Worst-case percentage ─────────────────────────────────────────────────
+worst_pct = 20;   % percent  (e.g. 20 → bottom 20% of all directions)
+
+%% ═══════════════════════════════════════════════════════════════════════
+%  2. BUILD EQUAL-AREA SPHERICAL GRID
+% ═══════════════════════════════════════════════════════════════════════
+%
+% Equal-area elevation sampling:
+%   Map k = 0..N_el-1  →  sin(θ) linearly from -1 to +1
+%   Then θ = asin(sin_vals)
+% This ensures every (φ, θ) cell subtends the same solid angle.
+
+phi_deg  = linspace(0, 360 - 360/N_az, N_az);          % azimuth [deg]
+sin_vals = linspace(-1, 1, N_el);                       % equal-area
+theta_deg = asind(sin_vals);                            % elevation [deg]
+
+phi_rad   = deg2rad(phi_deg);
+theta_rad = deg2rad(theta_deg);
+
+%% ═══════════════════════════════════════════════════════════════════════
+%  3. EVALUATE POWER FOR EVERY DIRECTION
+% ═══════════════════════════════════════════════════════════════════════
+P_grid = zeros(N_el, N_az);
+
+fprintf('Running spherical sweep: %d × %d = %d directions...\n', ...
+        N_el, N_az, N_el*N_az);
+t_start = tic;
+
+for i = 1:N_el
+    for j = 1:N_az
+        % Sun direction in body frame (unit vector from spherical coords)
+        sun_body = [cos(theta_rad(i)) * cos(phi_rad(j));
+                    cos(theta_rad(i)) * sin(phi_rad(j));
+                    sin(theta_rad(i))];
+
+        [P_grid(i,j), ~, ~] = solar_power_output(sun_body, irradiance, cp, pc);
+    end
+end
+
+elapsed = toc(t_start);
+fprintf('Done in %.1f s\n\n', elapsed);
+
+%% ═══════════════════════════════════════════════════════════════════════
+%  4. STATISTICS  (equal-area → all cells have equal weight)
+% ═══════════════════════════════════════════════════════════════════════
+P_all    = P_grid(:);           % flatten to column vector
+N_total  = numel(P_all);
+
+P_avg    = mean(P_all);
+
+P_sorted = sort(P_all, 'ascend');
+n_worst  = round(worst_pct/100 * N_total);
+P_worst20 = mean(P_sorted(1 : n_worst));
+
+%% ═══════════════════════════════════════════════════════════════════════
+%  5. PRINT RESULTS
+% ═══════════════════════════════════════════════════════════════════════
+fprintf('╔══════════════════════════════════════╗\n');
+fprintf('║    TUMBLING POWER – SPHERICAL SWEEP  ║\n');
+fprintf('╠══════════════════════════════════════╣\n');
+fprintf('║  Grid          : %4d az × %4d el   ║\n', N_az, N_el);
+fprintf('║  Total dirs    : %8d             ║\n', N_total);
+fprintf('║  Irradiance    : %8.1f W/m²       ║\n', irradiance);
+fprintf('║  Cell temp     : %8.1f °C         ║\n', cp.T);
+fprintf('╠══════════════════════════════════════╣\n');
+fprintf('║  P_avg         : %8.4f W           ║\n', P_avg);
+fprintf('║  P_worst %2d%%   : %8.4f W           ║\n', worst_pct, P_worst20);
+fprintf('║  P_min         : %8.4f W           ║\n', min(P_all));
+fprintf('║  P_max         : %8.4f W           ║\n', max(P_all));
+fprintf('║  Std dev       : %8.4f W           ║\n', std(P_all));
+fprintf('╚══════════════════════════════════════╝\n\n');
+
+%% ═══════════════════════════════════════════════════════════════════════
+%  6. PLOTS
+% ═══════════════════════════════════════════════════════════════════════
+
+% ── 6a. Mollweide-like heatmap (azimuth × elevation) ─────────────────────
+figure('Name', 'Tumbling Power – Spherical Map', 'NumberTitle', 'off');
+imagesc(phi_deg, theta_deg, P_grid);
+set(gca, 'YDir', 'normal');
+colormap(turbo);
+cb = colorbar;
+cb.Label.String = 'Power [W]';
+xlabel('Azimuth φ [°]');
+ylabel('Elevation θ [°]');
+title(sprintf('Solar Power vs Sun Direction in Body Frame\nP_{avg} = %.3f W  |  P_{worst%d%%} = %.3f W', ...
+              P_avg, worst_pct, P_worst20));
+xline(180, 'w--', 'LineWidth', 0.8);
+yline(  0, 'w--', 'LineWidth', 0.8);
+axis tight;
+
+% ── 6b. 3-D sphere coloured by power ─────────────────────────────────────
+figure('Name', 'Tumbling Power – 3D Sphere', 'NumberTitle', 'off');
+[PHI, THETA] = meshgrid(phi_rad, theta_rad);
+Xs = cos(THETA) .* cos(PHI);
+Ys = cos(THETA) .* sin(PHI);
+Zs = sin(THETA);
+surf(Xs, Ys, Zs, P_grid, 'EdgeColor', 'none', 'FaceColor', 'interp');
+colormap(turbo); colorbar;
+axis equal off;
+title(sprintf('Power on Unit Sphere  (P_{avg} = %.3f W)', P_avg));
+view(135, 30);
+camlight('headlight');
+lighting gouraud;
+
+% ── 6c. Histogram ────────────────────────────────────────────────────────
+figure('Name', 'Tumbling Power – Distribution', 'NumberTitle', 'off');
+histogram(P_all, 60, 'FaceColor', [0.2 0.5 0.9], 'EdgeColor', 'none', ...
+          'Normalization', 'probability');
+hold on;
+xline(P_avg,     'r-',  'LineWidth', 2, 'Label', sprintf('Mean %.3f W', P_avg));
+xline(P_worst20, 'k--', 'LineWidth', 2, 'Label', sprintf('Worst %d%% %.3f W', worst_pct, P_worst20));
+xlabel('Power [W]');
+ylabel('Probability');
+title('Distribution of Power over All Sun Directions');
+legend('All directions', 'Mean', sprintf('Worst %d%% mean', worst_pct));
+grid on;
