@@ -55,7 +55,7 @@ n_cells_per_face = 2;
 % ── Panel configuration ──────────────────────────────────────────────────
 face_labels   = {'+X',        '-X',        '+Y',        '-Y',        '+Z',       '-Z'      };
 n_cells_vec   = [  2,           2,           2,           2,           2,          0        ];
-n_strings_vec = [  2,           2,           2,           2,           1,          0        ];
+n_strings_vec = [  2,           2,           1,           2,           1,          0        ];
 face_area_vec = [A_side,       A_side,       A_side,       A_side,       A_top,       A_top       ];
 A_cell_vec    = face_area_vec .* n_cells_vec;
 eta_wiring    = 0.98;

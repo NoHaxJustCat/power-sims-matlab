@@ -1,4 +1,8 @@
-function [total_power, face_power, face_info] = solar_power_output(sun_vector, irradiance, cell_params, panel_config)
+function [total_power, face_power, face_info] = solar_power_output(sun_vector, irradiance, cell_params, panel_config, ignore_temp)
+
+    if nargin < 5
+        ignore_temp = false;
+    end
 
     % ── 0. Validate & defaults ───────────────────────────────────────────
     required = {'Vmp0','Imp0','dVdT','dIdT','alpha_cell','eps_cell'};
@@ -70,7 +74,12 @@ function [total_power, face_power, face_info] = solar_power_output(sun_vector, i
             T_cell = -273.15; % or cold deep space, effectively won't produce power anyway
         end
         
-        dT = T_cell - cell_params.Tref;
+        if ignore_temp
+            dT = 0;
+            T_cell = cell_params.Tref;
+        else
+            dT = T_cell - cell_params.Tref;
+        end
         Vmp_cell = Vmp0 + dVdT * dT;
 
         face_info(k).face   = pc.face;

@@ -31,7 +31,7 @@ function [P_dir, T_cells, P_mean, cp, pc, phi_deg, theta_deg] = directional_powe
                       cos(t_i) * sin(phi_(j));
                       sin(t_i)];
             
-            [row_P(j), ~, fi] = solar_power_output(s_body, irradiance, cp, pc); % use 30% albedo for non-illuminated faces
+            [row_P(j), ~, fi] = solar_power_output(s_body, irradiance, cp, pc); 
             row_T(j,:) = [fi.T_cell];
         end
         

@@ -8,7 +8,7 @@ addpath('lib');
 N_az  = 180;
 N_el  = 90;
 irradiance = 1367;
-config_list = {'a', 'b', 'c'};
+config_list = {'a', 'b', 'c', 'd'};
 
 % 2. OUTPUT DIRECTORY
 out_dir = 'results';
@@ -16,7 +16,28 @@ if ~exist(out_dir, 'dir')
     mkdir(out_dir);
 end
 
-% 3. RUN ALL CONFIGURATIONS
+% 3. GENERATE SUMMARY TABLE FIRST
+fprintf('\n=========================================================================================\n');
+fprintf('%-10s | %-8s %-8s %-8s | %-24s | %-25s\n', 'Config', 'Min', 'Max', 'Avg (Real)', 'Avg (T=28C, EOL)', 'Avg (T=28C, BOL)');
+fprintf('-----------------------------------------------------------------------------------------\n');
+for idx = 1:numel(config_list)
+    dvs_config = config_list{idx};
+    
+    % REAL (EOL + Temp Effects)
+    [P_mean_real, P_min, P_max] = eval_power_custom(N_az, N_el, irradiance, dvs_config, false, false);
+    
+    % NO TEMP EFFECT (28 deg, EOL)
+    [P_mean_notemp, ~, ~] = eval_power_custom(N_az, N_el, irradiance, dvs_config, true, false);
+    
+    % NO TEMP EFFECT + BOL (28 deg, BOL)
+    [P_mean_notemp_bol, ~, ~] = eval_power_custom(N_az, N_el, irradiance, dvs_config, true, true);
+    
+    fprintf('%-10s | %-8.3f %-8.3f %-8.3f | %-24.3f | %-25.3f\n', ...
+        upper(dvs_config), P_min, P_max, P_mean_real, P_mean_notemp, P_mean_notemp_bol);
+end
+fprintf('=========================================================================================\n\n');
+
+% 4. RUN FULL SIMULATIONS & SAVE RESULTS
 for idx = 1:numel(config_list)
     dvs_config = config_list{idx};
     config_tag = lower(dvs_config);

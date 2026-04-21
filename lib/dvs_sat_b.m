@@ -10,11 +10,8 @@ function [cell_params, panel_config] = cubesat_simple()
 
 % rough estimate for fluence (SPENVIS would be better, but this is just a conservative guess)
 
-% Approximate trapped electron fluence for LEO circular orbit
-mission_years   = 2;        % DVS mission duration
-% Rough estimate for 500 km SSO: ~1-3e14 MeV-equivalent e/cm²/year
-fluence_per_year = 2e14;    % [e/cm²/year] — conservative mid estimate
-mission_fluence  = fluence_per_year * mission_years;
+% Total trapped electron fluence from SPENVIS for 2 years
+mission_fluence  = 3.706e+12; % [e/cm²]
 fluence_table = [0, 5e13, 2.5e14, 5e14, 1e15, 1e16];
 
 % Cell values only (not CIC)
@@ -36,8 +33,8 @@ cell_params.Vmp0 = Vmp_eol;   % already EOL
 cell_params.Imp0 = Imp_eol;   % already EOL
 cell_params.LDEF = 1.0;       % radiation already encoded above
                                % keep LDEF for other degradation if needed
-cell_params.Vmp0 = 2.411;       % MPP voltage              [V]
-cell_params.Imp0 = 0.504;       % MPP current              [A]
+% cell_params.Vmp0 = 2.411;       % MPP voltage              [V]
+% cell_params.Imp0 = 0.504;       % MPP current              [A]
 cell_params.dVdT = dVdT_eol;    % Vmp temperature coeff    [V/°C]
 cell_params.dIdT = dIdT_eol;    % Imp temperature coeff    [A/°C]
 cell_params.Tref = 28;          % Reference temperature    [°C]
@@ -57,8 +54,8 @@ n_cells_per_face = 2;
 
 % ── Panel configuration ──────────────────────────────────────────────────
 face_labels   = {'+X',        '-X',        '+Y',        '-Y',        '+Z',       '-Z'      };
-n_cells_vec   = [  4,           4,           2,           4,           2,          2        ];
-n_strings_vec = [  1,           1,           1,           1,           1,          1        ];
+n_cells_vec   = [  2,           2,           2,           2,           2,          2        ];
+n_strings_vec = [  2,           2,           1,           2,           1,          1        ];
 face_area_vec = [A_side,       A_side,       A_side,       A_side,       A_top,       A_top       ];
 A_cell_vec    = face_area_vec .* n_cells_vec;
 eta_wiring    = 0.98;
